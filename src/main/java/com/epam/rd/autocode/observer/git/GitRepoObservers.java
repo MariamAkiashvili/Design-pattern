@@ -1,16 +1,12 @@
 package com.epam.rd.autocode.observer.git;
 
-import com.sun.source.tree.LiteralTree;
-
 import java.util.*;
 
 public class GitRepoObservers {
-
-    private static List<Event> events = new ArrayList<>();
-    private static Map<String, List<Commit>> branches = new HashMap<>();
     private static List<WebHook> webHooks = new ArrayList<>();
+    private static List<Commit> commits = new ArrayList<>();
 
-    public static Repository newRepository(){
+    public static Repository newRepository() {
         return new Repository() {
             @Override
             public void addWebHook(WebHook webHook) {
@@ -19,25 +15,27 @@ public class GitRepoObservers {
 
             @Override
             public Commit commit(String branch, String author, String[] changes) {
-                Commit commit =  new Commit(author, changes);
-                Event event = new Event(Event.Type.COMMIT, branch, List.of(commit));
-                for(WebHook webHook : webHooks){
-                    webHook.onEvent(event);
+                Commit commit = new Commit(author, changes);
+                commits.add(commit);
+                for (WebHook webHook : webHooks) {
+                    webHook.onEvent(new Event(Event.Type.COMMIT, branch, commits));
                 }
                 return commit;
             }
 
             @Override
             public void merge(String sourceBranch, String targetBranch) {
-                for (WebHook webHook : webHooks){
-                    webHook.onEvent(new Event(Event.Type.MERGE,webHook.branch(), null));
-                }
 
+                Commit commit = commits.get(0);
+                for (WebHook webHook : webHooks) {
+                    webHook.onEvent(new Event(Event.Type.MERGE, targetBranch, List.of(commit)));
+                }
+                commits.remove(0);
             }
         };
     }
 
-    public static WebHook mergeToBranchWebHook(String branchName){
+    public static WebHook mergeToBranchWebHook(String branchName) {
         return new WebHook() {
             @Override
             public String branch() {
@@ -51,8 +49,7 @@ public class GitRepoObservers {
 
             @Override
             public List<Event> caughtEvents() {
-                return webHooks.getLast().caughtEvents();
-//                return null;
+                return List.of();
             }
 
             @Override
@@ -60,16 +57,16 @@ public class GitRepoObservers {
 
             }
         };
-
     }
 
-    public static WebHook commitToBranchWebHook(String branchName){
+    public static WebHook commitToBranchWebHook(String branchName) {
         return new WebHook() {
+            List<Event>caughtEvents = new ArrayList<>();
+
             @Override
             public String branch() {
                 return branchName;
             }
-
 
             @Override
             public Event.Type type() {
@@ -78,15 +75,13 @@ public class GitRepoObservers {
 
             @Override
             public List<Event> caughtEvents() {
-                return events;
+                return caughtEvents;
             }
 
             @Override
             public void onEvent(Event event) {
-
+                caughtEvents.add(event);
             }
         };
     }
-
-
 }
